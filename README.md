@@ -1,81 +1,86 @@
-# Olist E-Commerce Data Lakehouse
+# Olist E-Commerce Data Engineering Lakehouse
 
-A data engineering portfolio project built using the Olist Brazilian E-Commerce Public Dataset. The project demonstrates the design and implementation of a lakehouse architecture using Databricks, PySpark, Delta Lake and Google Cloud Platform.
+## Project Overview
 
-## 1. Project Overview
+This project builds a data engineering lakehouse using the [Olist Brazilian E-Commerce Public Dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce).
 
-The objective is to transform raw e-commerce data into reliable, structured datasets suitable for downstream analytics.
+The objective is to transform a collection of raw e-commerce CSV files into a reliable, structured and analytics-ready data platform using modern data engineering practices.
 
-The project follows a Medallion Architecture:
+The project follows a medallion architecture, separating raw ingestion, data cleansing and dimensional modeling into Bronze, Silver and Gold layers.
+
+Beyond implementing the data pipeline, the project focuses on data quality, reproducibility, dimensional modeling, referential integrity and documenting engineering decisions.
+
+**Project status:** Bronze, Silver and Gold layers implemented and validated. Incremental processing, orchestration, automated testing and further platform integration are planned.
+
+## Technology Stack
+
+| Technology | Purpose |
+|---|---|
+| Databricks | Lakehouse development and execution environment |
+| Apache Spark / PySpark | Distributed data processing |
+| Delta Lake | Reliable, transactional data storage |
+| Unity Catalog | Data organization, governance and discoverability |
+| Git / GitHub | Version control and project documentation |
+| Google Cloud Platform | Planned cloud storage and platform integration |
+
+## Project Documentation
+
+The README provides an overview of the project. Detailed technical documentation is maintained separately.
+
+| Document | Description |
+|---|---|
+| [Data Modeling](docs/data_modeling.md) | Gold dimensional model, table grains, surrogate keys, relationships and SCD strategy |
+| [Data Quality](docs/data_quality.md) | Validation methodology, integrity checks, source-data anomalies and known limitations |
+
+## Architecture
+
+The project follows the medallion architecture:
+
+```mermaid
+flowchart LR
+    A["Olist CSV Sources"] --> B["Raw"]
+    B --> C["Bronze"]
+    C --> D["Silver"]
+    D --> E["Gold"]
+
+    subgraph Lakehouse["Databricks Lakehouse"]
+        B
+        C
+        D
+        E
+    end
+
+    E --> F["Analytics-Ready Data"]
+```
 
 | Layer | Responsibility |
 |---|---|
-| Bronze | Ingest and preserve source data |
-| Silver | Clean, type, validate and standardize source entities |
-| Gold | Build analytical dimensions and fact tables |
+| Raw | Original source files stored in Unity Catalog Volumes |
+| Bronze | Source data ingested into Delta tables, retaining original fields and ingestion metadata |
+| Silver | Cleaned, typed, deduplicated and validated datasets |
+| Gold | Dimensional model consisting of fact and dimension tables |
 
-**Technology stack**
-
-- Databricks
-- PySpark
-- Delta Lake
-- Unity Catalog
-- GitHub
-- Google Cloud Platform (integration planned)
-
-Olist is a static historical dataset. The project may simulate recurring batch deliveries and controlled source updates, but does not claim genuine CDC or live streaming from the original dataset.
-
-## 2. Architecture
-
-```text
-Olist CSV source files
-        |
-        v
-     Bronze
-  Raw Delta tables
-        |
-        v
-     Silver
- Typed and validated tables
-        |
-        v
-      Gold
- Dimensions and facts
-        |
-        v
-   Project 2
- BigQuery + dbt
- Analytics and business KPIs
-```
-
-Project 1 focuses on data engineering and reliable data processing.
-
-Project 2 will consume the Gold outputs and focus on analytics engineering, business-facing models and KPI definitions. Business metrics should primarily be defined in Project 2 rather than duplicated in the lakehouse.
-
-## 3. Medallion Layers
+The layers are organized in the Unity Catalog catalog `lakehouse`, using the schemas `raw`, `bronze`, `silver` and `gold`.
 
 ### Bronze
 
-**Purpose:** Preserve ingested source data with ingestion metadata.
+All nine source datasets are ingested into Delta tables.
 
-- All nine Olist source tables loaded into Delta.
-- Original source fields retained.
-- Source fields initially loaded as strings.
-- Metadata columns:
-  - `ingestion_timestamp`
-  - `source_file`
-  - `batch_id`
-- Initial implementation uses full-refresh/overwrite processing.
+The Bronze layer preserves the original source fields and includes ingestion metadata:
+
+- `ingestion_timestamp`
+- `source_file`
+- `batch_id`
+
+Source columns are initially retained as strings to preserve the original input representation.
 
 ### Silver
 
-**Purpose:** Provide typed, validated and cleaned source entities.
-
-All nine source tables are available:
+The Silver layer contains nine cleaned and structured Delta tables:
 
 - `orders`
 - `order_items`
-- `payments`
+- `order_payments`
 - `order_reviews`
 - `customers`
 - `sellers`
@@ -83,217 +88,189 @@ All nine source tables are available:
 - `geolocation`
 - `product_category_name_translation`
 
-Transformations include data type conversion, validation, deduplication where applicable, and missing-value flags.
+Transformations include:
 
-Silver preserves source-level entities and is not intended to become the primary home for business KPIs.
+- Data type conversion.
+- Null and invalid-value handling.
+- Deduplication where applicable.
+- Data validation and consistency checks.
+- Preservation of source identifiers and relevant source attributes.
 
-The Silver implementation is completed and committed to GitHub. Incremental processing is not yet implemented.
+The Silver layer provides a consistent foundation for downstream modeling while retaining the meaning and traceability of the source data.
 
 ### Gold
 
-**Purpose:** Provide analytical dimensions and facts with explicit grains and relationships.
+The Gold layer contains a dimensional model designed to support analytical queries.
 
-The following dimensions have been implemented and validated:
+It consists of five dimensions and three fact tables.
 
-| Table | Grain | Status |
+**Dimensions**
+
+- `dim_customers`
+- `dim_geography`
+- `dim_products`
+- `dim_sellers`
+- `dim_date`
+
+**Fact tables**
+
+- `fact_orders`
+- `fact_order_items`
+- `fact_payments`
+
+The model separates orders, order items and payments because each represents a different business event grain.
+
+See [Data Modeling Documentation](docs/data_modeling.md) for the detailed modeling rationale, key strategies, relationships and history-management considerations.
+
+### Implementation Summary
+
+| Layer | Source / Output | Implementation |
 |---|---|---|
-| `dim_geography` | ZIP prefix + city + state | Complete |
-| `dim_customers` | One row per `customer_unique_id` | Complete |
-| `dim_products` | One row per `product_id` | Complete |
-| `dim_sellers` | One row per `seller_id` | Complete |
-| `dim_date` | One row per calendar date | In progress |
+| Bronze | 9 Olist source datasets | Delta ingestion with source and batch metadata |
+| Silver | 9 structured Delta tables | Data typing, cleansing, deduplication and validation |
+| Gold | 5 dimensions and 3 fact tables | Dimensional modeling, surrogate keys and relationship validation |
 
-Planned fact tables:
+All three layers have been implemented and persisted in Delta tables.
 
-| Table | Grain |
+Bronze and Silver currently use a full-refresh baseline. Incremental processing and automated orchestration are planned.
+
+## Key Design Decisions
+
+Several modeling decisions were made deliberately rather than simply following a generic dimensional modeling template.
+
+| Decision | Rationale |
 |---|---|
-| `fact_orders` | One row per `order_id` |
-| `fact_order_items` | One row per `(order_id, order_item_id)` |
-| `fact_payments` | One row per `(order_id, payment_sequential)` |
+| Deterministic surrogate keys | Hash-based keys provide reproducible identifiers derived from stable business attributes. |
+| Composite geography identity | ZIP prefix alone is insufficient to identify a geographic combination; ZIP prefix, city and state are considered together. |
+| Customer dimension grain | `customer_unique_id` represents the underlying shopper, whereas multiple `customer_id` values can refer to the same shopper. |
+| Shared date dimension | A single date dimension supports multiple order lifecycle dates through role-playing foreign keys. |
+| Separate fact tables | Different grains prevent incorrect joins and double counting when analyzing orders, items and payments. |
+| Initial Type 1 dimension semantics | The historical snapshot does not provide sufficient evidence to reconstruct reliable historical attribute changes. |
 
-## 4. Key Modeling Decisions
+The detailed reasoning, implementation decisions and potential future evolution of the dimensional model are documented in [`docs/data_modeling.md`](docs/data_modeling.md).
 
-### Customer identity
+## Gold Layer Validation
 
-**Decision:** Model customers using `customer_unique_id`, not `customer_id`.
+The Gold layer was validated after persistence to Delta tables.
 
-Olist contains multiple `customer_id` records that can map to the same underlying shopper.
+### Table volumes
 
-Consequences:
+| Table | Rows |
+|---|---:|
+| `dim_geography` | 15,249 |
+| `dim_customers` | 96,096 |
+| `dim_products` | 32,951 |
+| `dim_sellers` | 3,095 |
+| `dim_date` | 800 |
+| `fact_orders` | 99,441 |
+| `fact_order_items` | 112,650 |
+| `fact_payments` | 103,886 |
 
-- `dim_customers` contains one row per `customer_unique_id`.
-- `customer_sk` is generated using SHA-256.
-- `customer_id` is retained in `fact_orders` for source traceability.
-- Customer repeat-purchase analysis uses the underlying shopper identity.
+### Validation performed
 
-The current customer dimension contains only identity attributes because the source does not provide sufficient reliable profile attributes to justify a richer customer profile.
+- Expected table grain and row counts.
+- Primary and composite key uniqueness.
+- Null checks on required identifiers and keys.
+- Surrogate key generation consistency.
+- Foreign key integrity across all eleven modeled relationships.
+- Join cardinality checks to detect unintended row multiplication.
+- Source-to-Gold financial total reconciliation for item prices, freight and payments.
 
-### Customer geography
+All eleven foreign key relationships passed orphan-record checks. Four tested join cardinality scenarios preserved their original row counts.
 
-**Decision:** Model geography separately from customer identity.
+Financial reconciliation also identified discrepancies already present in the source dataset. These were retained and documented rather than silently adjusted.
 
-Customer locations are associated with order records. The same shopper can appear with different delivery locations.
+See [Data Quality Documentation](docs/data_quality.md) for validation details and reconciliation findings.
 
-We do not interpret these differences as permanent customer address changes.
+## Known Source Data Issues and Future Analysis Opportunities
 
-Consequences:
+Data validation identified several source-data limitations worth preserving for future investigation.
 
-- Customer location is resolved at order grain.
-- `dim_geography` represents distinct ZIP/city/state combinations.
-- `fact_orders` will contain `delivery_geography_sk`.
-- Customer SCD Type 2 is not implemented because the snapshot does not establish reliable historical profile changes.
+| Issue | Finding |
+|---|---|
+| Orders without items | 775 orders |
+| Orders without payments | 1 delivered order |
+| Payment reconciliation | 303 differences among 98,665 comparable orders |
+| Missing product categories | 610 products |
+| Missing English category translations | 2 categories |
+| Missing exact geolocation matches | 176 customer and 135 seller geographic combinations |
 
-### Shared geography dimension
+Financial reconciliation differences were calculated by comparing aggregated payment values against aggregated item prices and freight values at the order grain.
 
-**Decision:** Build `dim_geography` from the union of distinct customer and seller geography combinations.
+These exceptions are preserved rather than silently corrected or removed. They are not automatically interpreted as pipeline failures or evidence of financial misconduct.
 
-Grain:
+A potential future anomaly analysis dashboard could investigate:
 
-`(zip_code_prefix, city, state)`
+- Payment discrepancies by amount and direction.
+- Payment type and installment count.
+- Order status and purchase period.
+- Orders missing item or payment records.
+- Product category and geographic data completeness.
 
-Columns:
+This would be a separate analytical exercise, not a reason to modify the source-faithful Gold facts.
 
-- `geography_sk`
-- `zip_code_prefix`
-- `city`
-- `state`
+See [Data Quality Documentation](docs/data_quality.md) for the detailed findings, validation methodology and future investigation opportunities.
 
-The surrogate key is generated using SHA-256 over a stable JSON serialization of the three attributes.
-
-ZIP prefixes are stored as strings to preserve leading zeros.
-
-The dimension contains 15,249 validated combinations.
-
-**Why not use ZIP prefix alone?**
-
-ZIP prefixes are not necessarily unique across city/state combinations in the source data. The full combination is therefore used as the dimension grain.
-
-### Geolocation enrichment
-
-**Decision:** Keep detailed geolocation separate from the business geography dimension.
-
-The geolocation source contains multiple coordinate points per ZIP prefix. Direct joins to raw coordinate records can multiply fact rows.
-
-Profiling results:
-
-- Customer geography: 15,034 combinations; 176 without exact geolocation matches.
-- Seller geography: 2,296 combinations; 135 without exact geolocation matches.
-
-Some unmatched combinations have ZIP prefixes present in geolocation but different city/state values.
-
-Consequences:
-
-- Geolocation is not the authority for customer or seller city/state attributes.
-- Raw coordinate points are not joined directly to facts.
-- A future `geolocation_by_zip` table may provide one representative coordinate per ZIP prefix.
-- Missing coordinates will remain null rather than being invented.
-
-### Product dimension
-
-**Decision:** Model one row per `product_id`.
-
-The dimension is enriched using a LEFT JOIN to the product category translation table.
-
-Consequences:
-
-- All source products are preserved, including products with missing or untranslated categories.
-- Portuguese and English category names are retained.
-- Source misspellings `product_name_lenght` and `product_description_lenght` are corrected in Gold aliases.
-- `product_sk` is generated using SHA-256 of `product_id`.
-
-The source contains 32,951 unique products. Two non-null categories lack translations, and 610 products have missing categories.
-
-### Seller dimension
-
-**Decision:** Model one row per `seller_id`.
-
-Columns:
-
-- `seller_sk`
-- `seller_id`
-- `geography_sk`
-
-Seller geography is associated with the seller entity, so its geography foreign key belongs in `dim_sellers`, rather than being unnecessarily repeated in every order-item record.
-
-Initially Type 1.
-
-### Date dimension
-
-**Decision:** Use one shared calendar dimension with integer `YYYYMMDD` keys.
-
-The same dimension will support multiple date roles in `fact_orders`:
-
-- Purchase date
-- Approval date
-- Carrier handover date
-- Customer delivery date
-- Estimated delivery date
-
-This is a role-playing dimension. Missing source dates remain null; dates are not invented.
-
-## 5. Surrogate Key Strategy
-
-Deterministic SHA-256 keys are used for current business dimensions:
-
-| Dimension | Natural key | Surrogate key |
-|---|---|---|
-| Customers | `customer_unique_id` | `customer_sk` |
-| Products | `product_id` | `product_sk` |
-| Sellers | `seller_id` | `seller_sk` |
-| Geography | ZIP + city + state | `geography_sk` |
-
-The date dimension uses an integer `YYYYMMDD` key instead.
-
-Surrogate keys are generated in Project 1 and preserved in Project 2. They should not be independently regenerated using a different hashing algorithm in dbt.
-
-If SCD Type 2 is introduced later, the surrogate key must distinguish different versions of the same natural entity.
-
-## 6. Fact Table Design Principles
-
-Fact tables have explicitly defined grains:
-
-- Orders: one row per order.
-- Order items: one row per order item.
-- Payments: one row per payment sequence within an order.
-
-Orders are not deduplicated by timestamp. Simultaneous orders are distinct transactions and must be retained.
-
-Foreign keys will connect the facts to the appropriate dimensions.
-
-Order-level business metrics and analytical KPIs will primarily be developed downstream in Project 2.
-
-## 7. Engineering Practices and Future Work
-
-Completed:
-
-- Bronze and Silver Delta tables.
-- Silver validation and transformations.
-- GitHub integration with Databricks.
-- Initial Gold dimensional modeling.
-- Four validated Gold dimensions.
-
-Planned:
-
-- Complete `dim_date`.
-- Implement and validate Gold fact tables.
-- Referential integrity and fact-grain testing.
-- Incremental batch processing and idempotency.
-- Databricks workflow orchestration with Lakeflow Jobs.
-- Automated testing and CI/CD.
-- GCP integration and deployment.
-- Downstream BigQuery and dbt warehouse.
-
-## 8. Repository Development Workflow
+## Repository Development Workflow
 
 The project uses trunk-based development with:
 
-- `main`
-- Feature branches
+- `main` as the primary branch.
+- Feature branches for isolated development.
+- Changes committed and integrated into `main` when complete.
 
-Current development branch: `feature/gold-layer`.
+Examples of feature branches include:
 
-Completed Bronze and Silver implementations should not be refactored without a specific technical reason.
+- `feature/bronze-layer`
+- `feature/silver-layer`
+- `feature/gold-layer`
 
----
+## Future Engineering Work
 
-**Project status:** Gold dimensional modeling in progress.
+The current implementation establishes the initial lakehouse foundation. Further engineering maturity is planned.
+
+| Area | Planned work |
+|---|---|
+| Incremental processing | Implement repeatable incremental batch ingestion and processing |
+| Idempotency | Ensure rerunning a batch does not introduce duplicate or inconsistent records |
+| Change handling | Evaluate appropriate upsert and Delta MERGE strategies |
+| Declarative Pipelines | Introduce managed pipeline definitions and expectations |
+| Orchestration | Implement automated execution using Lakeflow Jobs |
+| Testing | Add repeatable transformation and data quality tests |
+| CI/CD | Introduce automated validation and deployment workflows |
+| Cloud integration | Extend the platform with Google Cloud Storage and related GCP services |
+| Observability | Improve monitoring, logging and operational visibility |
+| Reproducibility | Add environment setup, source data preparation and execution instructions |
+
+The Olist dataset is a historical snapshot. Incremental processing will therefore be demonstrated through controlled batch deliveries or simulated source updates, not presented as genuine source CDC or live streaming.
+
+## Architecture and Data Model Visuals
+
+The following visuals will be added as the engineering implementation approaches completion:
+
+- **Table-level lineage:** Raw → Bronze → Silver → Gold, documented in `docs/architecture.md`.
+- **Column-level lineage:** Selected Unity Catalog lineage examples, documented in `docs/architecture.md`.
+- **Gold dimensional model ERD:** All eight Gold tables, columns, data types and primary and foreign key relationships, documented in `docs/data_modeling.md`.
+
+These visuals will complement the written architecture and modeling documentation and will be generated from the implemented pipeline and persisted Gold schemas where possible.
+
+## Project Status
+
+| Component | Status |
+|---|---|
+| Databricks and Unity Catalog setup | Complete |
+| Bronze ingestion | Complete |
+| Silver transformations | Complete |
+| Gold dimensional model | Complete |
+| Gold integration validation | Complete |
+| Detailed modeling documentation | In progress |
+| Data quality documentation | In progress |
+| Incremental batch processing | Planned |
+| Idempotency and upsert handling | Planned |
+| Declarative Pipelines | Planned |
+| Lakeflow Jobs orchestration | Planned |
+| Automated testing and CI/CD | Planned |
+| GCP integration | Planned |
+| Lineage and ERD documentation | Planned |
+
+The project is being developed incrementally, with emphasis on sound data modeling, reliable processing, validation and maintainable engineering practices.
