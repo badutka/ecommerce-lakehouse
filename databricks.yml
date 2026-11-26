@@ -1,0 +1,32 @@
+bundle:
+  name: ecommerce_lakehouse
+
+variables:
+  schema:
+    default: default
+
+resources:
+  pipelines:
+    olist_lakehouse_pipeline:
+      name: olist_lakehouse
+      catalog: workspace
+      schema: ${var.schema}
+      serverless: true
+      root_path: ./pipelines/olist_lakehouse
+      libraries:
+        - glob:
+            include: ./pipelines/olist_lakehouse/transformations/**
+
+targets:
+  dev:
+    default: true
+    mode: development
+    variables:
+      schema: default
+
+  prod:
+    mode: production
+    git:
+      branch: main
+    variables:
+      schema: olist_prod
