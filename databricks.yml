@@ -1,15 +1,18 @@
+
 bundle:
   name: ecommerce_lakehouse
 
 variables:
+  catalog:
+    default: lakehouse_dev
   schema:
-    default: default
+    default: bronze
 
 resources:
   pipelines:
     olist_lakehouse_pipeline:
       name: olist_lakehouse
-      catalog: lakehouse
+      catalog: ${var.catalog}
       schema: ${var.schema}
       serverless: true
       root_path: ./pipelines/olist_lakehouse
@@ -22,11 +25,13 @@ targets:
     default: true
     mode: development
     variables:
-      schema: default
+      catalog: lakehouse_dev
+      schema: bronze
 
   prod:
     mode: production
     git:
       branch: main
     variables:
-      schema: olist_prod
+      catalog: lakehouse
+      schema: bronze
