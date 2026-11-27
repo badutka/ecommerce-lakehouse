@@ -9,7 +9,7 @@ resources:
   pipelines:
     olist_lakehouse_pipeline:
       name: olist_lakehouse
-      catalog: workspace
+      catalog: lakehouse
       schema: ${var.schema}
       serverless: true
       root_path: ./pipelines/olist_lakehouse
