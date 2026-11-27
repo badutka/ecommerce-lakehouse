@@ -1,4 +1,3 @@
-
 bundle:
   name: ecommerce_lakehouse
 
@@ -15,6 +14,7 @@ resources:
       catalog: ${var.catalog}
       schema: ${var.schema}
       serverless: true
+      # Prod uses relative paths -> resolves to the deployed .bundle snapshot
       root_path: ./pipelines/olist_lakehouse
       libraries:
         - glob:
@@ -27,6 +27,14 @@ targets:
     variables:
       catalog: lakehouse_dev
       schema: bronze
+    resources:
+      pipelines:
+        olist_lakehouse_pipeline:
+          # Dev uses your live Git folder directly (resolves to /Workspace/Users/dutkabar@gmail.com/...)
+          root_path: /Workspace/Users/${workspace.current_user.userName}/ecommerce-lakehouse/pipelines/olist_lakehouse
+          libraries:
+            - glob:
+                include: /Workspace/Users/${workspace.current_user.userName}/ecommerce-lakehouse/pipelines/olist_lakehouse/transformations/**
 
   prod:
     mode: production
